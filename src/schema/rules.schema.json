@@ -1,0 +1,177 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://processengine.dev/schemas/rules.schema.json",
+  "title": "@processengine/rules definition",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["artifacts"],
+  "properties": {
+    "artifacts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/artifact" }
+    }
+  },
+  "$defs": {
+    "artifact": {
+      "oneOf": [
+        { "$ref": "#/$defs/rule" },
+        { "$ref": "#/$defs/pipeline" },
+        { "$ref": "#/$defs/condition" },
+        { "$ref": "#/$defs/dictionary" }
+      ]
+    },
+    "step": {
+      "type": "object",
+      "properties": {
+        "stepId": { "type": "string" },
+        "rule": { "type": "string" },
+        "pipeline": { "type": "string" },
+        "condition": { "type": "string" }
+      },
+      "additionalProperties": false,
+      "oneOf": [
+        { "required": ["rule"] },
+        { "required": ["pipeline"] },
+        { "required": ["condition"] }
+      ]
+    },
+    "rule": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "type", "description", "role", "operator"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "type": { "const": "rule" },
+        "description": { "type": "string", "minLength": 1 },
+        "role": { "enum": ["check", "predicate"] },
+        "operator": { "type": "string", "minLength": 1 },
+        "field": { "type": "string" },
+        "value_field": { "type": "string" },
+        "level": { "enum": ["WARNING", "ERROR", "EXCEPTION"] },
+        "code": { "type": "string" },
+        "message": { "type": "string" },
+        "flags": { "type": "string" },
+        "fields": { "type": "array", "items": { "type": "string" } },
+        "paths": { "type": "array", "items": { "type": "string" } },
+        "aggregate": { "type": "object" },
+        "meta": { "type": "object" },
+        "dictionary": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["type", "id"],
+          "properties": {
+            "type": { "const": "static" },
+            "id": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "pipeline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "description", "entrypoint", "strict", "flow"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "type": { "const": "pipeline" },
+        "description": { "type": "string", "minLength": 1 },
+        "entrypoint": { "type": "boolean" },
+        "strict": { "type": "boolean" },
+        "required_context": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "flow": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/step" }
+        },
+        "message": { "type": "string" },
+        "strictCode": { "type": "string" }
+      }
+    },
+    "condition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "description", "when", "steps"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "type": { "const": "condition" },
+        "description": { "type": "string", "minLength": 1 },
+        "when": {
+          "oneOf": [
+            { "type": "string", "minLength": 1 },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["all"],
+              "properties": {
+                "all": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": { "$ref": "#/$defs/whenExpr" }
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["any"],
+              "properties": {
+                "any": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": { "$ref": "#/$defs/whenExpr" }
+                }
+              }
+            }
+          ]
+        },
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/step" }
+        }
+      }
+    },
+    "whenExpr": {
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["all"],
+          "properties": {
+            "all": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/whenExpr" }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["any"],
+          "properties": {
+            "any": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "$ref": "#/$defs/whenExpr" }
+            }
+          }
+        }
+      ]
+    },
+    "dictionary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "description", "entries"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "type": { "const": "dictionary" },
+        "description": { "type": "string", "minLength": 1 },
+        "entries": { "type": "array" }
+      }
+    }
+  }
+}

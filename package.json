@@ -1,0 +1,62 @@
+{
+  "name": "@processengine/rules",
+  "version": "1.0.0",
+  "description": "Compile-once JSON DSL for declarative validation pipelines",
+  "type": "commonjs",
+  "main": "index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "require": "./index.js",
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    },
+    "./schema": {
+      "require": "./src/schema/rules.schema.json",
+      "default": "./src/schema/rules.schema.json"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "src/**/*.js",
+    "src/schema/*.json",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "docs/COMPATIBILITY.md",
+    "docs/SPEC_RU.md",
+    "docs/MIGRATION_GUIDE.md",
+    "docs/BENCHMARKS.md",
+    "benchmarks/run.mjs"
+  ],
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "smoke:pack": "node scripts/smoke-pack.mjs",
+    "bench": "node benchmarks/run.mjs",
+    "prepublishOnly": "npm test && npm run smoke:pack"
+  },
+  "keywords": [
+    "processengine",
+    "rules",
+    "validation",
+    "json",
+    "pipeline",
+    "declarative",
+    "business-rules"
+  ],
+  "author": "ProcessEngine contributors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/processengine/rules.git"
+  },
+  "bugs": {
+    "url": "https://github.com/processengine/rules/issues"
+  },
+  "homepage": "https://github.com/processengine/rules#readme",
+  "engines": {
+    "node": ">=18"
+  }
+}
