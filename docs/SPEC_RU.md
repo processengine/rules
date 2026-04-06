@@ -90,3 +90,8 @@ Effective operator registry строится на фазах validate/prepare и
 - форме runtime-результата
 - trace contract на документированном уровне
 - документированным публичным полям artifact
+
+
+## Transport-safe runtime-result
+
+Публичный runtime-result библиотеки является transport-safe / JSON-safe по нормативному shape: в нём нет `undefined` и иных нестабильных JS-значений, а смысл результата сохраняется после JSON-сериализации и обратного чтения.

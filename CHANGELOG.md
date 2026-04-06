@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.0.1
+
+- fixed the inter-library transport-safe contract of the public rules runtime result
+- normalized `evaluateRules(...)` output to a JSON-safe public shape without `undefined` values
+- verified the `rules -> mappings` handoff with a contract-style downstream runtime test and JSON round-trip checks
+- added an official build path and aligned CI/publish flows with `src -> build -> dist`
+
 ## 2.0.0
 
 - moved `rules` to canonical ProcessEngine API: `validateRules / prepareRules / evaluateRules`

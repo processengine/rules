@@ -1,6 +1,6 @@
 {
   "name": "@processengine/rules",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "ProcessEngine rules runtime for declarative validation artifacts",
   "type": "module",
   "main": "./index.js",
@@ -26,13 +26,13 @@
     "scripts/smoke-consumer.mjs"
   ],
   "scripts": {
-    "build": "node scripts/build.mjs",
     "test": "node --test tests/*.test.js",
     "smoke:pack": "npm run test:pack",
     "smoke:consumer": "node scripts/smoke-consumer.mjs",
-    "prepack": "npm run build",
     "prepublishOnly": "npm run build && npm test && npm run test:pack",
-    "test:pack": "node scripts/smoke-pack.mjs"
+    "test:pack": "node scripts/smoke-pack.mjs",
+    "build": "node scripts/build.mjs",
+    "prepack": "npm run build"
   },
   "engines": {
     "node": ">=20.19.0"

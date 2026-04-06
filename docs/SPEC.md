@@ -41,6 +41,8 @@ The runtime never performs hidden compile.
 
 ## Runtime result contract
 
+The public runtime result is transport-safe / JSON-safe by normative shape. It is intended to be passed to downstream ProcessEngine layers without host-side technical cleanup.
+
 Success-path result contains:
 
 - `status`
@@ -48,7 +50,7 @@ Success-path result contains:
 - `issues`
 - `trace?`
 
-`ABORT` additionally contains `error`.
+`ABORT` additionally contains `error`. Public runtime objects do not expose `undefined`, functions, classes, symbols, bigint values or cyclic structures. Fields that are logically absent are omitted or normalized to contract-safe values.
 
 ## Diagnostics and errors
 

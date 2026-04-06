@@ -124,10 +124,6 @@ const result = evaluateRules(artifact, input);
 - `examples/`
 
 
-## Development
+## Межбиблиотечный стык
 
-```bash
-npm ci
-npm run build
-npm test
-```
+Публичный runtime-result `evaluateRules(...)` приведён к transport-safe / JSON-safe нормативному shape. Его можно напрямую передавать в следующий слой семейства ProcessEngine без промежуточной ручной очистки в хост-сервисе.
