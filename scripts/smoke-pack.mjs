@@ -7,18 +7,14 @@ const root = process.cwd();
 const temp = mkdtempSync(join(tmpdir(), 'rules-pack-'));
 let tarballPath = null;
 
-function parsePackJson(stdout) {
-  const text = String(stdout).trim();
-    const start = text.indexOf('[');
-  const end = text.lastIndexOf(']');
-  if (start === -1 || end === -1 || end < start) {
-    throw new Error(`npm pack --json did not return JSON. Output was:\n${text}`);
-  }
-  return JSON.parse(text.slice(start, end + 1));
+function parsePackJson(output) {
+  const lines = output.trim().split(/\r?\n/);
+  const jsonStart = lines.findIndex((line) => line.trim().startsWith('['));
+  if (jsonStart === -1) throw new Error('npm pack --json did not return JSON output');
+  return JSON.parse(lines.slice(jsonStart).join('\n'));
 }
 
 try {
-  execSync('npm run build', { cwd: root, stdio: 'inherit' });
   const packJson = execSync('npm pack --json', { cwd: root, encoding: 'utf8' });
   const pack = parsePackJson(packJson)[0];
   tarballPath = join(root, pack.filename);
@@ -35,6 +31,7 @@ const source = {
 const artifact = prepareRules(source);
 const result = evaluateRules(artifact, { payload: { customer: { email: '' } }, pipelineId: 'entry.checkout' }, { trace: 'basic' });
 if (result.status !== 'ERROR') throw new Error('bad status');
+if (JSON.stringify(result).includes(':undefined')) throw new Error('runtime result is not transport-safe');
 console.log('packed smoke ok');
 `);
   execSync('node consumer.mjs', { cwd: temp, stdio: 'inherit' });

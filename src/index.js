@@ -26,6 +26,33 @@ function freezeDiagnostics(diagnostics) {
   return Object.freeze(diagnostics.map((item) => Object.freeze({ ...item })));
 }
 
+
+function normalizeTransportSafeValue(value) {
+  if (value === null) return null;
+  const kind = typeof value;
+  if (kind === 'string' || kind === 'number' || kind === 'boolean') return value;
+  if (kind === 'undefined' || kind === 'function' || kind === 'symbol' || kind === 'bigint') return undefined;
+  if (Array.isArray(value)) {
+    return value.map((item) => {
+      const normalized = normalizeTransportSafeValue(item);
+      return normalized === undefined ? null : normalized;
+    });
+  }
+  if (value instanceof Date) return value.toISOString();
+  if (!isObject(value)) return undefined;
+  const out = {};
+  for (const [key, item] of Object.entries(value)) {
+    const normalized = normalizeTransportSafeValue(item);
+    if (normalized !== undefined) out[key] = normalized;
+  }
+  return out;
+}
+
+function toTransportSafeRuntimeResult(result) {
+  return normalizeTransportSafeValue(result);
+}
+
+
 function makeDiagnostic({
   code,
   message,
@@ -822,11 +849,11 @@ export function evaluateRules(artifact, input, options = {}) {
     flat = flattenPayload(payload || {});
     if (detectFlatNestedConflict(flat)) {
       const conflictKey = detectFlatNestedConflict(flat);
-      return makeAbortResult('CONFLICTING_PAYLOAD_PATHS', `Payload contains conflicting flat and nested paths around ${conflictKey}`, { conflictKey }, shouldIncludeTrace(traceMode) ? tracer.trace : undefined);
+      return toTransportSafeRuntimeResult(makeAbortResult('CONFLICTING_PAYLOAD_PATHS', `Payload contains conflicting flat and nested paths around ${conflictKey}`, { conflictKey }, shouldIncludeTrace(traceMode) ? tracer.trace : undefined));
     }
   } catch (error) {
     const code = error.code === 'CYCLE_DETECTED' ? 'PAYLOAD_CYCLE_DETECTED' : error.code === 'DANGEROUS_KEY' ? 'DANGEROUS_PAYLOAD_KEY' : 'PAYLOAD_NOT_JSON_SAFE';
-    return makeAbortResult(code, error.message, { path: error.path || null }, shouldIncludeTrace(traceMode) ? tracer.trace : undefined);
+    return toTransportSafeRuntimeResult(makeAbortResult(code, error.message, { path: error.path || null }, shouldIncludeTrace(traceMode) ? tracer.trace : undefined));
   }
   const runtimeContext = context || (isObject(flat.__context) ? flat.__context : {});
   const enrichedPayload = Object.assign(Object.create(null), flat, { __context: runtimeContext });
@@ -840,26 +867,26 @@ export function evaluateRules(artifact, input, options = {}) {
   };
   const pipeline = artifact.__registry.get(pipelineId);
   const compiledPipeline = artifact.__pipelines.get(pipelineId);
-  if (!pipeline || pipeline.type !== 'pipeline' || !compiledPipeline) return makeAbortResult('PIPELINE_NOT_FOUND', `Pipeline not found: ${pipelineId}`, { availablePipelines: [...artifact.__pipelines.keys()].sort() }, shouldIncludeTrace(traceMode) ? tracer.trace : undefined);
+  if (!pipeline || pipeline.type !== 'pipeline' || !compiledPipeline) return toTransportSafeRuntimeResult(makeAbortResult('PIPELINE_NOT_FOUND', `Pipeline not found: ${pipelineId}`, { availablePipelines: [...artifact.__pipelines.keys()].sort() }, shouldIncludeTrace(traceMode) ? tracer.trace : undefined));
   try {
     tracer.push({ step: 'pipeline.start', artifactId: pipelineId, outcome: 'start', details: { traceMode } });
     if (checkRequiredContext(pipeline, ctxBase, issues, tracer)) {
       const result = { status: 'EXCEPTION', control: 'STOP', issues, ...(shouldIncludeTrace(traceMode) ? { trace: tracer.trace } : {}) };
-      return result;
+      return toTransportSafeRuntimeResult(result);
     }
     const control = executeSteps(artifact, compiledPipeline.steps, pipeline.id, ctxBase, issues, tracer, `pipeline:${pipelineId}`);
     if (applyStrictBoundary(pipeline, issues, 0, null, tracer)) {
-      return { status: 'EXCEPTION', control: 'STOP', issues, ...(shouldIncludeTrace(traceMode) ? { trace: tracer.trace } : {}) };
+      return toTransportSafeRuntimeResult({ status: 'EXCEPTION', control: 'STOP', issues, ...(shouldIncludeTrace(traceMode) ? { trace: tracer.trace } : {}) });
     }
     const hasErrors = issues.some((item) => item.level === 'ERROR' || item.level === 'EXCEPTION');
     const hasWarnings = issues.some((item) => item.level === 'WARNING');
     const status = control === 'STOP' ? 'EXCEPTION' : hasErrors ? 'ERROR' : hasWarnings ? 'OK_WITH_WARNINGS' : 'OK';
+    tracer.push({ step: 'pipeline.finish', artifactId: pipelineId, outcome: status.toLowerCase(), details: { issueCount: issues.length } });
     const result = { status, control: control === 'STOP' || hasErrors ? 'STOP' : 'CONTINUE', issues };
     if (shouldIncludeTrace(traceMode)) result.trace = tracer.trace;
-    tracer.push({ step: 'pipeline.finish', artifactId: pipelineId, outcome: status.toLowerCase(), details: { issueCount: issues.length } });
-    return result;
+    return toTransportSafeRuntimeResult(result);
   } catch (error) {
     const runtimeError = error instanceof RulesRuntimeError ? error : new RulesRuntimeError({ code: error?.code === 'CUSTOM_OPERATOR_ERROR' ? 'CUSTOM_OPERATOR_ERROR' : 'RULES_RUNTIME_ABORT', message: error?.message || String(error), details: { pipelineId } });
-    return { status: 'ABORT', control: 'STOP', issues, ...(shouldIncludeTrace(traceMode) ? { trace: tracer.trace } : {}), error: { code: runtimeError.code, message: runtimeError.message, details: runtimeError.details || null } };
+    return toTransportSafeRuntimeResult({ status: 'ABORT', control: 'STOP', issues, ...(shouldIncludeTrace(traceMode) ? { trace: tracer.trace } : {}), error: { code: runtimeError.code, message: runtimeError.message, details: runtimeError.details || null } });
   }
 }

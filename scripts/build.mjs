@@ -1,23 +1,14 @@
-import { cpSync, existsSync, mkdirSync, rmSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { mkdirSync, rmSync, copyFileSync, cpSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 
-const root = dirname(dirname(fileURLToPath(import.meta.url)));
-const srcDir = join(root, 'src');
-const distDir = join(root, 'dist');
+const here = dirname(fileURLToPath(import.meta.url));
+const root = dirname(here);
+const src = join(root, 'src');
+const dist = join(root, 'dist');
 
-function assertExists(path, label) {
-  if (!existsSync(path)) {
-    throw new Error(`build: missing ${label} at ${path}`);
-  }
-}
-
-assertExists(join(srcDir, 'index.js'), 'runtime source entry');
-assertExists(join(srcDir, 'internal'), 'runtime internal source directory');
-
-rmSync(distDir, { recursive: true, force: true });
-mkdirSync(distDir, { recursive: true });
-cpSync(join(srcDir, 'index.js'), join(distDir, 'index.js'));
-cpSync(join(srcDir, 'internal'), join(distDir, 'internal'), { recursive: true });
-
+rmSync(dist, { recursive: true, force: true });
+mkdirSync(dist, { recursive: true });
+copyFileSync(join(src, 'index.js'), join(dist, 'index.js'));
+cpSync(join(src, 'internal'), join(dist, 'internal'), { recursive: true });
 console.log('build ok');
