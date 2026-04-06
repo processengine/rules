@@ -1,12 +1,5 @@
 # @processengine/rules
 
-[![CI](https://github.com/processengine/rules/actions/workflows/ci.yml/badge.svg)](https://github.com/processengine/rules/actions/workflows/ci.yml)
-[![Publish](https://github.com/processengine/rules/actions/workflows/publish.yml/badge.svg)](https://github.com/processengine/rules/actions/workflows/publish.yml)
-[![npm version](https://img.shields.io/npm/v/%40processengine%2Frules)](https://www.npmjs.com/package/@processengine/rules)
-[![npm downloads](https://img.shields.io/npm/dm/%40processengine%2Frules)](https://www.npmjs.com/package/@processengine/rules)
-[![Node.js](https://img.shields.io/node/v/%40processengine%2Frules)](https://www.npmjs.com/package/@processengine/rules)
-[![License](https://img.shields.io/npm/l/%40processengine%2Frules)](./LICENSE)
-
 `@processengine/rules` is the ProcessEngine runtime for declarative validation artifacts.
 
 It sits between data preparation and decision making:
@@ -27,42 +20,42 @@ import {
   RulesRuntimeError,
   formatRulesDiagnostics,
   formatRulesRuntimeError,
-} from "@processengine/rules";
+} from '@processengine/rules';
 ```
 
 ## Quick start
 
 ```js
-import { prepareRules, evaluateRules } from "@processengine/rules";
+import { prepareRules, evaluateRules } from '@processengine/rules';
 
 const source = {
   artifacts: [
     {
-      id: "library.person.first_name_required",
-      type: "rule",
-      description: "First name must be filled",
-      role: "check",
-      operator: "not_empty",
-      field: "person.firstName",
-      level: "ERROR",
-      code: "PERSON.FIRST_NAME.REQUIRED",
-      message: "First name is required",
+      id: 'library.person.first_name_required',
+      type: 'rule',
+      description: 'First name must be filled',
+      role: 'check',
+      operator: 'not_empty',
+      field: 'person.firstName',
+      level: 'ERROR',
+      code: 'PERSON.FIRST_NAME.REQUIRED',
+      message: 'First name is required',
     },
     {
-      id: "entry.registration",
-      type: "pipeline",
-      description: "Registration validation",
+      id: 'entry.registration',
+      type: 'pipeline',
+      description: 'Registration validation',
       entrypoint: true,
       strict: false,
-      flow: [{ rule: "library.person.first_name_required" }],
+      flow: [{ rule: 'library.person.first_name_required' }],
     },
   ],
 };
 
 const artifact = prepareRules(source);
 const result = evaluateRules(artifact, {
-  pipelineId: "entry.registration",
-  payload: { person: { firstName: "" } },
+  pipelineId: 'entry.registration',
+  payload: { person: { firstName: '' } },
 });
 ```
 
@@ -75,6 +68,7 @@ const result = evaluateRules(artifact, {
 ## Runtime contract
 
 `evaluateRules(...)` returns a validation result with domain-oriented fields. The public runtime result is transport-safe / JSON-safe by normative shape and is suitable for direct downstream use inside the ProcessEngine family without host-side cleanup.
+
 
 - `status`: `OK | OK_WITH_WARNINGS | ERROR | EXCEPTION | ABORT`
 - `control`: `CONTINUE | STOP`
@@ -99,16 +93,12 @@ Trace is disabled by default. `basic` gives compact execution events. `verbose` 
 Custom operator packs are part of the canonical path and participate in the whole chain:
 
 ```js
-import {
-  validateRules,
-  prepareRules,
-  evaluateRules,
-} from "@processengine/rules";
+import { validateRules, prepareRules, evaluateRules } from '@processengine/rules';
 
 const operators = {
   check: {
     always_fail() {
-      return { status: "FAIL" };
+      return { status: 'FAIL' };
     },
   },
 };
@@ -130,8 +120,8 @@ const result = evaluateRules(artifact, input);
 ## Documentation
 
 - `README.ru.md`
-- `docs/SPEC.md`
-- `docs/SPEC_RU.md`
+- `docs/SPEC.md` — normative artifact/runtime specification
+- `docs/SPEC_RU.md` — русская нормативная спецификация
 - `docs/COMPATIBILITY.md`
 - `docs/MIGRATION.md`
 - `CHANGELOG.md`

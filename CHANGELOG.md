@@ -6,6 +6,7 @@
 - normalized `evaluateRules(...)` output to a JSON-safe public shape without `undefined` values
 - verified the `rules -> mappings` handoff with a contract-style downstream runtime test and JSON round-trip checks
 - added an official build path and aligned CI/publish flows with `src -> build -> dist`
+- expanded `SPEC.md` and `SPEC_RU.md` into normative artifact/runtime specifications with field-level artifact semantics, reference semantics, operator semantics, runtime contract and interop guidance
 
 ## 2.0.0
 

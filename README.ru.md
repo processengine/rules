@@ -116,8 +116,8 @@ const result = evaluateRules(artifact, input);
 
 ## Документация
 
-- `docs/SPEC.md`
-- `docs/SPEC_RU.md`
+- `docs/SPEC.md` — нормативная artifact/runtime specification
+- `docs/SPEC_RU.md` — русская нормативная спецификация
 - `docs/COMPATIBILITY.md`
 - `docs/MIGRATION.md`
 - `CHANGELOG.md`
