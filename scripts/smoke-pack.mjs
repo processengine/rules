@@ -7,9 +7,20 @@ const root = process.cwd();
 const temp = mkdtempSync(join(tmpdir(), 'rules-pack-'));
 let tarballPath = null;
 
+function parsePackJson(stdout) {
+  const text = String(stdout).trim();
+    const start = text.indexOf('[');
+  const end = text.lastIndexOf(']');
+  if (start === -1 || end === -1 || end < start) {
+    throw new Error(`npm pack --json did not return JSON. Output was:\n${text}`);
+  }
+  return JSON.parse(text.slice(start, end + 1));
+}
+
 try {
+  execSync('npm run build', { cwd: root, stdio: 'inherit' });
   const packJson = execSync('npm pack --json', { cwd: root, encoding: 'utf8' });
-  const pack = JSON.parse(packJson)[0];
+  const pack = parsePackJson(packJson)[0];
   tarballPath = join(root, pack.filename);
 
   execSync(`npm install "${tarballPath}"`, { cwd: temp, stdio: 'inherit' });

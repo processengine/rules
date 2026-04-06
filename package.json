@@ -26,10 +26,12 @@
     "scripts/smoke-consumer.mjs"
   ],
   "scripts": {
+    "build": "node scripts/build.mjs",
     "test": "node --test tests/*.test.js",
     "smoke:pack": "npm run test:pack",
     "smoke:consumer": "node scripts/smoke-consumer.mjs",
-    "prepublishOnly": "npm test && npm run test:pack",
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run build && npm test && npm run test:pack",
     "test:pack": "node scripts/smoke-pack.mjs"
   },
   "engines": {

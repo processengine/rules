@@ -123,3 +123,12 @@ const result = evaluateRules(artifact, input);
 - `docs/MIGRATION.md`
 - `CHANGELOG.md`
 - `examples/`
+
+
+## Development
+
+```bash
+npm ci
+npm run build
+npm test
+```
