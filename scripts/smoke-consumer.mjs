@@ -1,22 +1,21 @@
-import pkg from '../index.js';
-import schema from '../src/schema/rules.schema.json' with { type: 'json' };
-const { createEngine, Operators, CompilationError } = pkg;
+import { prepareRules, evaluateRules, RulesCompileError } from '../index.js';
 
-const engine = createEngine({ operators: Operators });
-const compiled = engine.compile({
+const source = {
   artifacts: [
-    { id: 'library.warn', type: 'rule', description: 'warn', role: 'check', operator: 'not_empty', field: 'name', level: 'WARNING', code: 'NAME.WARNING', message: 'Name warning' },
-    { id: 'p', type: 'pipeline', description: 'p', entrypoint: true, strict: false, flow: [{ rule: 'library.warn' }] }
+    { id: 'library.checkout.email_required', type: 'rule', description: 'Customer email must be filled', role: 'check', operator: 'not_empty', field: 'customer.email', level: 'ERROR', code: 'CHECKOUT.EMAIL.REQUIRED', message: 'Customer email is required' },
+    { id: 'entry.checkout', type: 'pipeline', description: 'Checkout validation', entrypoint: true, strict: false, flow: [{ rule: 'library.checkout.email_required' }] }
   ]
-});
-const result = engine.runPipeline(compiled, 'p', { name: '' });
-if (result.status !== 'OK_WITH_WARNINGS') throw new Error('Expected OK_WITH_WARNINGS');
-if (!schema || schema.type !== 'object') throw new Error('Schema import failed');
+};
+
+const artifact = prepareRules(source);
+const result = evaluateRules(artifact, { pipelineId: 'entry.checkout', payload: { customer: { email: '' } } }, { trace: 'basic' });
+if (result.status !== 'ERROR') throw new Error('Expected ERROR result');
+if (!Array.isArray(result.trace) || result.trace.length === 0) throw new Error('Expected trace entries');
 let failed = false;
 try {
-  engine.compile({ artifacts: [{ id: 'bad', type: 'pipeline', description: 'bad', entrypoint: true, strict: false, flow: [] }] });
+  prepareRules({ artifacts: [{ id: 'bad', type: 'pipeline', description: 'bad', entrypoint: true, strict: false, flow: [] }] });
 } catch (error) {
-  failed = error instanceof CompilationError;
+  failed = error instanceof RulesCompileError;
 }
-if (!failed) throw new Error('Expected CompilationError for invalid pipeline');
+if (!failed) throw new Error('Expected RulesCompileError');
 console.log('smoke consumer ok');
