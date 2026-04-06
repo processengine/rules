@@ -1,0 +1,90 @@
+{
+  "artifacts": [
+    {
+      "id": "library.customer.email.required",
+      "type": "rule",
+      "description": "Customer email must be filled",
+      "role": "check",
+      "operator": "not_empty",
+      "field": "customer.email",
+      "level": "ERROR",
+      "code": "CUSTOMER.EMAIL.REQUIRED",
+      "message": "Customer email is required"
+    },
+    {
+      "id": "library.customer.country.required",
+      "type": "rule",
+      "description": "Shipping country must be filled",
+      "role": "check",
+      "operator": "not_empty",
+      "field": "shipping.country",
+      "level": "ERROR",
+      "code": "SHIPPING.COUNTRY.REQUIRED",
+      "message": "Shipping country is required"
+    },
+    {
+      "id": "library.order.coupon.length_max",
+      "type": "rule",
+      "description": "Coupon code must be short enough",
+      "role": "check",
+      "operator": "length_max",
+      "field": "order.couponCode",
+      "value": 10,
+      "level": "WARNING",
+      "code": "ORDER.COUPON.TOO_LONG",
+      "message": "Coupon code is longer than expected"
+    },
+    {
+      "id": "library.order.currency.is_eur",
+      "type": "rule",
+      "description": "Order currency is EUR",
+      "role": "predicate",
+      "operator": "equals",
+      "field": "order.currency",
+      "value": "EUR"
+    },
+    {
+      "id": "library.shipping.vat.required",
+      "type": "rule",
+      "description": "VAT number is required for EUR orders",
+      "role": "check",
+      "operator": "not_empty",
+      "field": "customer.vatNumber",
+      "level": "ERROR",
+      "code": "CUSTOMER.VAT.REQUIRED",
+      "message": "VAT number is required for EUR orders"
+    },
+    {
+      "id": "condition.require_vat_for_eur",
+      "type": "condition",
+      "description": "Require VAT for EUR orders",
+      "when": "library.order.currency.is_eur",
+      "steps": [
+        {
+          "rule": "library.shipping.vat.required"
+        }
+      ]
+    },
+    {
+      "id": "entry.checkout",
+      "type": "pipeline",
+      "description": "Checkout validation",
+      "entrypoint": true,
+      "strict": false,
+      "flow": [
+        {
+          "rule": "library.customer.email.required"
+        },
+        {
+          "rule": "library.customer.country.required"
+        },
+        {
+          "rule": "library.order.coupon.length_max"
+        },
+        {
+          "condition": "condition.require_vat_for_eur"
+        }
+      ]
+    }
+  ]
+}

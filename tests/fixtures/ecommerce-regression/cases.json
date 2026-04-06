@@ -1,0 +1,111 @@
+[
+  {
+    "code": "checkout_ok_us",
+    "input": {
+      "pipelineId": "entry.checkout",
+      "payload": {
+        "customer": {
+          "email": "buyer@example.com"
+        },
+        "shipping": {
+          "country": "US"
+        },
+        "order": {
+          "currency": "USD",
+          "couponCode": "SPRING"
+        }
+      }
+    },
+    "expected": {
+      "status": "OK",
+      "control": "CONTINUE",
+      "issueCodes": [],
+      "issueLevels": []
+    }
+  },
+  {
+    "code": "checkout_missing_email",
+    "input": {
+      "pipelineId": "entry.checkout",
+      "payload": {
+        "customer": {
+          "email": ""
+        },
+        "shipping": {
+          "country": "US"
+        },
+        "order": {
+          "currency": "USD",
+          "couponCode": "SPRING"
+        }
+      }
+    },
+    "expected": {
+      "status": "ERROR",
+      "control": "STOP",
+      "issueCodes": [
+        "CUSTOMER.EMAIL.REQUIRED"
+      ],
+      "issueLevels": [
+        "ERROR"
+      ]
+    }
+  },
+  {
+    "code": "checkout_coupon_warning",
+    "input": {
+      "pipelineId": "entry.checkout",
+      "payload": {
+        "customer": {
+          "email": "buyer@example.com"
+        },
+        "shipping": {
+          "country": "US"
+        },
+        "order": {
+          "currency": "USD",
+          "couponCode": "SUPERSPRINGSALE2026"
+        }
+      }
+    },
+    "expected": {
+      "status": "OK_WITH_WARNINGS",
+      "control": "CONTINUE",
+      "issueCodes": [
+        "ORDER.COUPON.TOO_LONG"
+      ],
+      "issueLevels": [
+        "WARNING"
+      ]
+    }
+  },
+  {
+    "code": "checkout_eur_requires_vat",
+    "input": {
+      "pipelineId": "entry.checkout",
+      "payload": {
+        "customer": {
+          "email": "buyer@example.com",
+          "vatNumber": ""
+        },
+        "shipping": {
+          "country": "DE"
+        },
+        "order": {
+          "currency": "EUR",
+          "couponCode": "SPRING"
+        }
+      }
+    },
+    "expected": {
+      "status": "ERROR",
+      "control": "STOP",
+      "issueCodes": [
+        "CUSTOMER.VAT.REQUIRED"
+      ],
+      "issueLevels": [
+        "ERROR"
+      ]
+    }
+  }
+]
