@@ -155,21 +155,74 @@ function wildcardPatternToRegex(pattern) {
   return new RegExp(`^${body}$`);
 }
 
-export function expandWildcardKeys(pattern, payloadKeys) {
+export function expandWildcardMatches(pattern, payloadKeys) {
   const regex = wildcardPatternToRegex(pattern);
   const matches = [];
   for (const key of payloadKeys) {
     const match = regex.exec(key);
     if (match) matches.push({ key, indexes: match.slice(1).map(Number) });
   }
-  matches.sort((left, right) => {
-    for (let index = 0; index < Math.max(left.indexes.length, right.indexes.length); index += 1) {
-      const diff = (left.indexes[index] || 0) - (right.indexes[index] || 0);
-      if (diff !== 0) return diff;
-    }
-    return left.key.localeCompare(right.key);
+  matches.sort(compareWildcardMatches);
+  return matches;
+}
+
+function compareWildcardMatches(left, right) {
+  for (let index = 0; index < Math.max(left.indexes.length, right.indexes.length); index += 1) {
+    const diff = (left.indexes[index] || 0) - (right.indexes[index] || 0);
+    if (diff !== 0) return diff;
+  }
+  return left.key.localeCompare(right.key);
+}
+
+export function expandWildcardKeys(pattern, payloadKeys) {
+  return expandWildcardMatches(pattern, payloadKeys).map((item) => item.key);
+}
+
+export function materializeWildcardPattern(pattern, indexes) {
+  let position = 0;
+  return String(pattern).replace(/\[\*\]/g, () => {
+    if (position >= indexes.length) throw new Error(`Not enough wildcard indexes for pattern: ${pattern}`);
+    const index = indexes[position];
+    position += 1;
+    return `[${index}]`;
   });
-  return matches.map((item) => item.key);
+}
+
+export function wildcardGroupBasePattern(fields) {
+  if (!Array.isArray(fields) || fields.length === 0) return null;
+  let base = null;
+  let wildcardCount = null;
+  for (const field of fields) {
+    if (!isWildcardField(field)) return null;
+    const count = String(field).split('[*]').length - 1;
+    const last = String(field).lastIndexOf('[*]');
+    const currentBase = String(field).slice(0, last + 3);
+    if (base === null) {
+      base = currentBase;
+      wildcardCount = count;
+    } else if (currentBase !== base || count !== wildcardCount) {
+      return null;
+    }
+  }
+  return base;
+}
+
+export function expandWildcardGroups(basePattern, payloadKeys) {
+  const regex = wildcardPatternToRegex(basePattern);
+  const groups = new Map();
+  for (const key of payloadKeys) {
+    const segments = String(key).split('.');
+    for (let length = segments.length; length >= 1; length -= 1) {
+      const candidate = segments.slice(0, length).join('.');
+      const match = regex.exec(candidate);
+      if (!match) continue;
+      const indexes = match.slice(1).map(Number);
+      const groupKey = indexes.join(':');
+      if (!groups.has(groupKey)) groups.set(groupKey, { key: candidate, indexes });
+      break;
+    }
+  }
+  return [...groups.values()].sort(compareWildcardMatches);
 }
 
 export function flattenPayload(value, prefix = '', result = Object.create(null)) {

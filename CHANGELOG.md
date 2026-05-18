@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.1.0
+
+- added grouped wildcard support for built-in `any_filled` over `fields[]` with shared wildcard array base
+- added compile-time diagnostics for mixed wildcard/non-wildcard `any_filled` fields, mismatched wildcard bases and unsupported wildcard aggregate modes
+- documented wildcard `any_filled` semantics in `SPEC.md` and `SPEC_RU.md`
+- added regression coverage for `any_filled` grouped wildcard success, per-element failure, `WILDCARD_EMPTY`, invalid base patterns and invalid aggregate modes
+- added GitHub Actions CI and tag-based release workflow for reproducible npm releases
+
 ## 2.0.2
 
 - fixed wildcard field expansion for array paths like `items[*].code` and nested wildcard paths like `groups[*].documents[*].number`

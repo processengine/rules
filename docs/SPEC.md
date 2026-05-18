@@ -337,7 +337,82 @@ the rule evaluates the concrete field `beneficiary.tax.foreignResidencies[0].cou
 
 If the array is empty or no concrete `countryCode` fields exist, the same rule fails with `WILDCARD_EMPTY` because `onEmpty` is `FAIL`.
 
-`any_filled` is a built-in check operator over an explicit `fields[]` list. It is not the wildcard aggregation mechanism. For array-wide checks, prefer wildcard `field` + `aggregate` on the appropriate base operator.
+#### `any_filled` with wildcard `fields[]`
+
+`any_filled` is a built-in check operator over a `fields[]` list. It supports two normative modes:
+
+1. Explicit fields without wildcard — the rule passes when at least one listed field is present and non-empty.
+2. Wildcard fields with the same array base — the rule groups listed sibling fields by concrete array element and applies `any_filled` inside each group.
+
+Canonical grouped wildcard example:
+
+```json
+{
+  "id": "library.tax.foreign_tin_or_reason",
+  "type": "rule",
+  "description": "Every foreign tax residency must contain TIN or absence reason",
+  "role": "check",
+  "operator": "any_filled",
+  "fields": [
+    "beneficiary.tax.foreignResidencies[*].tin",
+    "beneficiary.tax.foreignResidencies[*].tinAbsenceReason"
+  ],
+  "aggregate": {
+    "mode": "EACH",
+    "onEmpty": "FAIL"
+  },
+  "level": "EXCEPTION",
+  "code": "BEN.TAX.FOREIGN_TIN_OR_REASON.REQUIRED",
+  "message": "Foreign tax residency TIN or absence reason is required"
+}
+```
+
+This means:
+
+```text
+for each beneficiary.tax.foreignResidencies[i]:
+  tin OR tinAbsenceReason must be filled
+```
+
+For payload:
+
+```json
+{
+  "beneficiary": {
+    "tax": {
+      "foreignResidencies": [
+        { "countryCode": "TJ", "tin": "123" },
+        { "countryCode": "KZ", "tinAbsenceReason": "NOT_ASSIGNED" },
+        { "countryCode": "UZ" }
+      ]
+    }
+  }
+}
+```
+
+the first two groups pass and the third group fails. The emitted issue points to the concrete array element:
+
+```json
+{
+  "field": "beneficiary.tax.foreignResidencies[2]",
+  "meta": {
+    "reason": "ANY_FILLED_GROUP_EMPTY",
+    "patterns": [
+      "beneficiary.tax.foreignResidencies[*].tin",
+      "beneficiary.tax.foreignResidencies[*].tinAbsenceReason"
+    ],
+    "indexes": [2]
+  }
+}
+```
+
+Rules for wildcard `any_filled`:
+
+- all `fields[]` entries must contain wildcard segments; mixing wildcard and non-wildcard fields in one rule is a compile-time error;
+- all wildcard fields must share the same wildcard base pattern, for example `beneficiary.tax.foreignResidencies[*]`;
+- supported `aggregate.mode` values are `EACH` and `ALL`;
+- if no array groups are found, `aggregate.onEmpty` follows the check wildcard policy (`PASS` by default, `FAIL` emits `WILDCARD_EMPTY`, `ERROR` aborts runtime evaluation);
+- nested wildcard bases are supported when all fields share the same nested base, for example `accounts[*].transactions[*]`.
 
 ## 11. Compile semantics
 

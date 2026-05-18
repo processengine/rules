@@ -12,6 +12,9 @@ import {
   detectFlatNestedConflict,
   isWildcardField,
   expandWildcardKeys,
+  expandWildcardGroups,
+  materializeWildcardPattern,
+  wildcardGroupBasePattern,
   normalizeWhenExpr,
   stepKind,
   isLibraryRef,
@@ -315,7 +318,20 @@ function validateRuleSchema(artifact, dictionaries, operatorRegistry) {
   }
   if (artifact.operator === 'any_filled') {
     const fields = Array.isArray(artifact.fields) ? artifact.fields : Array.isArray(artifact.paths) ? artifact.paths : null;
-    if (!Array.isArray(fields) || fields.length === 0) diagnostics.push(makeDiagnostic({ code: 'ANY_FILLED_FIELDS_REQUIRED', message: 'any_filled requires fields[]', level: 'error', phase: 'schema_validation', artifactId: artifact.id, path: 'fields' }));
+    if (!Array.isArray(fields) || fields.length === 0) {
+      diagnostics.push(makeDiagnostic({ code: 'ANY_FILLED_FIELDS_REQUIRED', message: 'any_filled requires fields[]', level: 'error', phase: 'schema_validation', artifactId: artifact.id, path: 'fields' }));
+    } else {
+      const wildcardFields = fields.filter((field) => isWildcardField(field));
+      if (wildcardFields.length > 0 && wildcardFields.length !== fields.length) {
+        diagnostics.push(makeDiagnostic({ code: 'ANY_FILLED_WILDCARD_FIELDS_MIXED', message: 'any_filled must not mix wildcard and non-wildcard fields in one rule', level: 'error', phase: 'schema_validation', artifactId: artifact.id, path: 'fields' }));
+      }
+      if (wildcardFields.length > 0 && wildcardGroupBasePattern(fields) === null) {
+        diagnostics.push(makeDiagnostic({ code: 'ANY_FILLED_WILDCARD_BASE_MISMATCH', message: 'any_filled wildcard fields must share the same wildcard base pattern', level: 'error', phase: 'schema_validation', artifactId: artifact.id, path: 'fields' }));
+      }
+      if (wildcardFields.length > 0 && artifact.aggregate?.mode !== undefined && !['EACH', 'ALL'].includes(artifact.aggregate.mode)) {
+        diagnostics.push(makeDiagnostic({ code: 'ANY_FILLED_WILDCARD_AGGREGATE_INVALID', message: 'any_filled wildcard aggregate.mode must be EACH or ALL', level: 'error', phase: 'schema_validation', artifactId: artifact.id, path: 'aggregate.mode' }));
+      }
+    }
   }
   if (artifact.operator === 'in_dictionary') {
     if (!artifact.dictionary || artifact.dictionary.type !== 'static' || typeof artifact.dictionary.id !== 'string') diagnostics.push(makeDiagnostic({ code: 'DICTIONARY_REF_INVALID', message: 'in_dictionary requires dictionary { type: static, id }', level: 'error', phase: 'schema_validation', artifactId: artifact.id, path: 'dictionary' }));
@@ -650,10 +666,67 @@ function makeAbortResult(code, message, details, trace) {
   return { status: 'ABORT', control: 'STOP', issues: [], ...(trace ? { trace } : {}), error: { code, message, details: details || null } };
 }
 
+
+function anyFilledFields(rule) {
+  if (Array.isArray(rule.fields)) return rule.fields;
+  if (Array.isArray(rule.paths)) return rule.paths;
+  return [];
+}
+
+function isWildcardAnyFilledRule(rule) {
+  if (!rule || rule.operator !== 'any_filled') return false;
+  const fields = anyFilledFields(rule);
+  return fields.some((field) => isWildcardField(field));
+}
+
+function evaluateWildcardAnyFilled(rule, operator, ctxBase) {
+  const fields = anyFilledFields(rule);
+  const basePattern = wildcardGroupBasePattern(fields);
+  if (!basePattern) throw new Error('any_filled wildcard fields must share the same wildcard base pattern');
+  const aggregateMode = rule.aggregate?.mode || 'EACH';
+  if (aggregateMode !== 'EACH' && aggregateMode !== 'ALL') {
+    throw new Error(`Unsupported any_filled wildcard aggregate.mode: ${aggregateMode}`);
+  }
+  const cacheKey = `any_filled:${basePattern}`;
+  let groups = ctxBase.wildcardCache.get(cacheKey);
+  if (!groups) {
+    groups = expandWildcardGroups(basePattern, ctxBase.payloadKeys || []);
+    ctxBase.wildcardCache.set(cacheKey, groups);
+  }
+  if (groups.length === 0) {
+    const behavior = onEmptyBehavior(rule, 'PASS');
+    if (behavior === 'FAIL') return { status: 'FAIL', field: fields[0] || basePattern, actual: undefined, meta: { reason: 'WILDCARD_EMPTY', patterns: fields } };
+    if (behavior === 'ERROR') throw new Error(`Wildcard pattern matched 0 groups: ${basePattern}`);
+    return { status: 'OK' };
+  }
+  const failures = [];
+  for (const group of groups) {
+    const concreteFields = fields.map((field) => materializeWildcardPattern(field, group.indexes));
+    const result = operator({ ...rule, fields: concreteFields, paths: undefined, _patternFields: fields, _patternBase: basePattern }, ctxBase);
+    if (result.status === 'EXCEPTION') return result;
+    if (result.status === 'FAIL') {
+      failures.push({
+        status: 'FAIL',
+        field: materializeWildcardPattern(basePattern, group.indexes),
+        actual: undefined,
+        meta: { reason: 'ANY_FILLED_GROUP_EMPTY', patterns: fields, indexes: group.indexes },
+      });
+    }
+  }
+  if (failures.length === 0) return { status: 'OK' };
+  if (aggregateMode === 'ALL' && rule.aggregate?.summaryIssue === true) {
+    return { status: 'FAIL', field: basePattern, actual: failures.length, meta: { reason: 'ANY_FILLED_GROUPS_FAILED', patterns: fields, failedCount: failures.length, mode: 'ALL' } };
+  }
+  return { status: 'FAIL', failures };
+}
+
 function evaluatePredicate(artifact, rule, ctxBase, tracer, scope) {
   const operator = artifact.__operators.predicate[rule.operator];
   const mode = tracer.trace ? true : false;
   const ctx = { ...ctxBase };
+  if (isWildcardAnyFilledRule(rule)) {
+    return evaluateWildcardAnyFilled(rule, operator, ctx);
+  }
   if (isWildcardField(rule.field)) {
     const cacheKey = `pred:${rule.field}`;
     let keys = ctxBase.wildcardCache.get(cacheKey);
@@ -700,6 +773,9 @@ function evaluatePredicate(artifact, rule, ctxBase, tracer, scope) {
 function evaluateCheck(artifact, rule, ctxBase, tracer, scope) {
   const operator = artifact.__operators.check[rule.operator];
   const ctx = { ...ctxBase };
+  if (isWildcardAnyFilledRule(rule)) {
+    return evaluateWildcardAnyFilled(rule, operator, ctx);
+  }
   if (isWildcardField(rule.field)) {
     const cacheKey = `check:${rule.field}`;
     let keys = ctxBase.wildcardCache.get(cacheKey);

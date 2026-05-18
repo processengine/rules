@@ -174,3 +174,129 @@ test('validateRules rejects invalid aggregate.onEmpty value for wildcard check',
   assert.equal(result.ok, false);
   assert.equal(result.diagnostics.some((item) => item.code === 'AGGREGATE_ON_EMPTY_INVALID'), true);
 });
+
+test('any_filled supports wildcard fields grouped by array element with EACH aggregate', () => {
+  const rule = {
+    id: 'library.tax.foreign_tin_or_reason',
+    type: 'rule',
+    description: 'Every foreign tax residency must contain TIN or absence reason',
+    role: 'check',
+    operator: 'any_filled',
+    fields: [
+      'beneficiary.tax.foreignResidencies[*].tin',
+      'beneficiary.tax.foreignResidencies[*].tinAbsenceReason'
+    ],
+    aggregate: { mode: 'EACH', onEmpty: 'FAIL' },
+    level: 'EXCEPTION',
+    code: 'BEN.TAX.FOREIGN_TIN_OR_REASON.REQUIRED',
+    message: 'Foreign tax residency TIN or absence reason is required'
+  };
+  const result = evaluate(rule, {
+    beneficiary: {
+      tax: {
+        foreignResidencies: [
+          { countryCode: 'TJ', tin: '123' },
+          { countryCode: 'KZ', tinAbsenceReason: 'NOT_ASSIGNED' },
+          { countryCode: 'UZ' }
+        ]
+      }
+    }
+  });
+  assert.equal(result.status, 'EXCEPTION');
+  assert.equal(result.issues.length, 1);
+  assert.equal(result.issues[0].field, 'beneficiary.tax.foreignResidencies[2]');
+  assert.equal(result.issues[0].meta.reason, 'ANY_FILLED_GROUP_EMPTY');
+  assert.deepEqual(result.issues[0].meta.patterns, [
+    'beneficiary.tax.foreignResidencies[*].tin',
+    'beneficiary.tax.foreignResidencies[*].tinAbsenceReason'
+  ]);
+});
+
+test('any_filled wildcard passes when every array element has at least one listed field filled', () => {
+  const rule = {
+    id: 'library.tax.foreign_tin_or_reason_ok',
+    type: 'rule',
+    description: 'Every foreign tax residency must contain TIN or absence reason',
+    role: 'check',
+    operator: 'any_filled',
+    fields: [
+      'beneficiary.tax.foreignResidencies[*].tin',
+      'beneficiary.tax.foreignResidencies[*].tinAbsenceReason'
+    ],
+    aggregate: { mode: 'EACH', onEmpty: 'FAIL' },
+    level: 'EXCEPTION',
+    code: 'BEN.TAX.FOREIGN_TIN_OR_REASON.REQUIRED',
+    message: 'Foreign tax residency TIN or absence reason is required'
+  };
+  const result = evaluate(rule, {
+    beneficiary: {
+      tax: {
+        foreignResidencies: [
+          { countryCode: 'TJ', tin: '123' },
+          { countryCode: 'KZ', tinAbsenceReason: 'NOT_ASSIGNED' }
+        ]
+      }
+    }
+  });
+  assert.equal(result.status, 'OK');
+  assert.deepEqual(result.issues, []);
+});
+
+test('any_filled wildcard uses WILDCARD_EMPTY when no array groups are present and onEmpty=FAIL', () => {
+  const rule = {
+    id: 'library.tax.foreign_tin_or_reason_empty',
+    type: 'rule',
+    description: 'Every foreign tax residency must contain TIN or absence reason',
+    role: 'check',
+    operator: 'any_filled',
+    fields: [
+      'beneficiary.tax.foreignResidencies[*].tin',
+      'beneficiary.tax.foreignResidencies[*].tinAbsenceReason'
+    ],
+    aggregate: { mode: 'EACH', onEmpty: 'FAIL' },
+    level: 'EXCEPTION',
+    code: 'BEN.TAX.FOREIGN_TIN_OR_REASON.REQUIRED',
+    message: 'Foreign tax residency TIN or absence reason is required'
+  };
+  const result = evaluate(rule, { beneficiary: { tax: { foreignResidencies: [] } } });
+  assert.equal(result.status, 'EXCEPTION');
+  assert.equal(result.issues.length, 1);
+  assert.equal(result.issues[0].field, 'beneficiary.tax.foreignResidencies[*].tin');
+  assert.equal(result.issues[0].meta.reason, 'WILDCARD_EMPTY');
+});
+
+test('validateRules rejects any_filled wildcard fields with different base patterns', async () => {
+  const { validateRules } = await import('../index.js');
+  const result = validateRules(makeSource({
+    id: 'library.invalid.any_filled_wildcard_base',
+    type: 'rule',
+    description: 'Invalid wildcard grouping',
+    role: 'check',
+    operator: 'any_filled',
+    fields: ['foreignResidencies[*].tin', 'documents[*].number'],
+    aggregate: { mode: 'EACH', onEmpty: 'FAIL' },
+    level: 'ERROR',
+    code: 'INVALID.ANY_FILLED',
+    message: 'Invalid any_filled wildcard fields'
+  }));
+  assert.equal(result.ok, false);
+  assert.equal(result.diagnostics.some((item) => item.code === 'ANY_FILLED_WILDCARD_BASE_MISMATCH'), true);
+});
+
+test('validateRules rejects any_filled wildcard fields with unsupported aggregate mode', async () => {
+  const { validateRules } = await import('../index.js');
+  const result = validateRules(makeSource({
+    id: 'library.invalid.any_filled_wildcard_mode',
+    type: 'rule',
+    description: 'Invalid wildcard aggregate mode',
+    role: 'check',
+    operator: 'any_filled',
+    fields: ['foreignResidencies[*].tin', 'foreignResidencies[*].tinAbsenceReason'],
+    aggregate: { mode: 'COUNT', value: 1 },
+    level: 'ERROR',
+    code: 'INVALID.ANY_FILLED',
+    message: 'Invalid any_filled wildcard aggregate mode'
+  }));
+  assert.equal(result.ok, false);
+  assert.equal(result.diagnostics.some((item) => item.code === 'ANY_FILLED_WILDCARD_AGGREGATE_INVALID'), true);
+});

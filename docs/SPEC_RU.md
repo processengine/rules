@@ -337,7 +337,82 @@ Wildcard-поля поддерживаются для check rules и predicate r
 
 Если массив пустой или конкретных `countryCode` полей нет, то это же правило падает с `WILDCARD_EMPTY`, потому что `onEmpty = FAIL`.
 
-`any_filled` — это built-in check operator по явному списку `fields[]`. Он не является wildcard aggregation mechanism. Для проверок по массивам предпочтительно использовать wildcard `field` + `aggregate` на подходящем базовом операторе.
+#### `any_filled` с wildcard `fields[]`
+
+`any_filled` — это built-in check operator по списку `fields[]`. У него есть два нормативных режима:
+
+1. Явные поля без wildcard — правило проходит, если хотя бы одно указанное поле существует и непустое.
+2. Wildcard-поля с одной массивной базой — правило группирует sibling-поля по конкретному элементу массива и применяет `any_filled` внутри каждой группы.
+
+Канонический пример grouped wildcard:
+
+```json
+{
+  "id": "library.tax.foreign_tin_or_reason",
+  "type": "rule",
+  "description": "Every foreign tax residency must contain TIN or absence reason",
+  "role": "check",
+  "operator": "any_filled",
+  "fields": [
+    "beneficiary.tax.foreignResidencies[*].tin",
+    "beneficiary.tax.foreignResidencies[*].tinAbsenceReason"
+  ],
+  "aggregate": {
+    "mode": "EACH",
+    "onEmpty": "FAIL"
+  },
+  "level": "EXCEPTION",
+  "code": "BEN.TAX.FOREIGN_TIN_OR_REASON.REQUIRED",
+  "message": "Foreign tax residency TIN or absence reason is required"
+}
+```
+
+Смысл:
+
+```text
+для каждого beneficiary.tax.foreignResidencies[i]:
+  tin ИЛИ tinAbsenceReason должен быть заполнен
+```
+
+Для payload:
+
+```json
+{
+  "beneficiary": {
+    "tax": {
+      "foreignResidencies": [
+        { "countryCode": "TJ", "tin": "123" },
+        { "countryCode": "KZ", "tinAbsenceReason": "NOT_ASSIGNED" },
+        { "countryCode": "UZ" }
+      ]
+    }
+  }
+}
+```
+
+первые две группы проходят, третья группа падает. Issue указывает на конкретный элемент массива:
+
+```json
+{
+  "field": "beneficiary.tax.foreignResidencies[2]",
+  "meta": {
+    "reason": "ANY_FILLED_GROUP_EMPTY",
+    "patterns": [
+      "beneficiary.tax.foreignResidencies[*].tin",
+      "beneficiary.tax.foreignResidencies[*].tinAbsenceReason"
+    ],
+    "indexes": [2]
+  }
+}
+```
+
+Правила для wildcard `any_filled`:
+
+- все элементы `fields[]` должны содержать wildcard-сегменты; смешивать wildcard и non-wildcard поля в одном правиле нельзя — это compile-time error;
+- все wildcard-поля должны иметь одну wildcard base pattern, например `beneficiary.tax.foreignResidencies[*]`;
+- поддерживаемые `aggregate.mode`: `EACH` и `ALL`;
+- если группы массива не найдены, `aggregate.onEmpty` работает по check wildcard policy (`PASS` по умолчанию, `FAIL` выпускает `WILDCARD_EMPTY`, `ERROR` прерывает runtime evaluation);
+- nested wildcard bases поддерживаются, если все поля имеют одну вложенную базу, например `accounts[*].transactions[*]`.
 
 ## 11. Compile semantics
 
