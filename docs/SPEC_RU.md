@@ -248,6 +248,97 @@ Effective operator registry строится на фазах validate/prepare.
 
 Спецификация не обещает все внутренние детали реализации каждого оператора, но рассматривает built-in operator ids, их участие в compile/runtime semantics и требования к их конфигурации как публичное, compatibility-relevant поведение.
 
+
+### 10.1. Wildcard-поля и aggregate-семантика
+
+Поле правила `field` может использовать сегмент массива `[*]`, чтобы применить одно правило ко всем подходящим элементам массивного payload. Wildcard matching выполняется по flattened runtime payload. Например:
+
+```json
+{
+  "field": "beneficiary.tax.foreignResidencies[*].countryCode"
+}
+```
+
+матчится на конкретные runtime-поля:
+
+```text
+beneficiary.tax.foreignResidencies[0].countryCode
+beneficiary.tax.foreignResidencies[1].countryCode
+```
+
+Wildcard-поля поддерживаются для check rules и predicate rules через `aggregate`. Это не отдельный оператор и не требует custom operator pack.
+
+Для check rules поддерживаются `aggregate.mode`:
+
+- `EACH` — выполнить check для каждого найденного поля и выпустить отдельный issue по каждому упавшему конкретному полю; это режим по умолчанию для wildcard check rules.
+- `ALL` — по умолчанию эквивалентен `EACH`; при `aggregate.summaryIssue: true` выпускает один summary issue на wildcard-поле вместо issues по конкретным полям.
+- `COUNT` — посчитать количество успешных concrete checks и сравнить count через `aggregate.op` и `aggregate.value`.
+- `MIN` — выбрать минимальное comparable-значение среди найденных полей и выполнить check по нему.
+- `MAX` — выбрать максимальное comparable-значение среди найденных полей и выполнить check по нему.
+
+Для predicate rules поддерживаются `aggregate.mode`:
+
+- `ANY` — predicate true, если хотя бы одно найденное поле дало true; это режим по умолчанию для wildcard predicate rules.
+- `ALL` — predicate true, только если все найденные поля дали true.
+- `COUNT` — посчитать количество true predicate evaluations и сравнить count через `aggregate.op` и `aggregate.value`.
+
+Для `COUNT` поддерживаются `aggregate.op`: `==`, `=`, `!=`, `>`, `>=`, `<`, `<=`.
+
+Если wildcard pattern не нашёл ни одного concrete payload field, поведение задаётся через `aggregate.onEmpty`.
+
+Для check rules:
+
+- `PASS` — считать пустой набор успешным; это значение по умолчанию.
+- `FAIL` — выпустить failed check на wildcard-поле с `meta.reason = "WILDCARD_EMPTY"`.
+- `ERROR` — прервать runtime evaluation runtime-ошибкой.
+
+Для predicate rules:
+
+- `FALSE` — считать пустой набор false.
+- `TRUE` — считать пустой набор true.
+- `UNDEFINED` — считать пустой набор undefined, что в condition evaluation ведёт себя как false; это значение по умолчанию.
+- `ERROR` — прервать runtime evaluation runtime-ошибкой.
+
+Канонический пример:
+
+```json
+{
+  "id": "library.tax.foreign_country_required",
+  "type": "rule",
+  "description": "Every foreign tax residency must contain country code",
+  "role": "check",
+  "operator": "not_empty",
+  "field": "beneficiary.tax.foreignResidencies[*].countryCode",
+  "aggregate": {
+    "mode": "EACH",
+    "onEmpty": "FAIL"
+  },
+  "level": "EXCEPTION",
+  "code": "BEN.TAX.FOREIGN_COUNTRY.REQUIRED",
+  "message": "Foreign tax residency country code is required"
+}
+```
+
+Для payload:
+
+```json
+{
+  "beneficiary": {
+    "tax": {
+      "foreignResidencies": [
+        { "countryCode": "TJ" }
+      ]
+    }
+  }
+}
+```
+
+правило проверяет concrete field `beneficiary.tax.foreignResidencies[0].countryCode` и проходит.
+
+Если массив пустой или конкретных `countryCode` полей нет, то это же правило падает с `WILDCARD_EMPTY`, потому что `onEmpty = FAIL`.
+
+`any_filled` — это built-in check operator по явному списку `fields[]`. Он не является wildcard aggregation mechanism. Для проверок по массивам предпочтительно использовать wildcard `field` + `aggregate` на подходящем базовом операторе.
+
 ## 11. Compile semantics
 
 ### 11.1. `validateRules(source, options?)`

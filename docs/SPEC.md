@@ -248,6 +248,97 @@ Normative operator rules:
 
 This specification does not promise every internal implementation detail of each operator, but it does treat built-in operator ids, their role in compile/runtime semantics, and their configuration requirements as public, compatibility-relevant behavior.
 
+
+### 10.1. Wildcard fields and aggregate semantics
+
+A rule `field` may use the array wildcard segment `[*]` to apply one rule to every matching element of an array-shaped payload. Wildcard matching is performed against the flattened runtime payload. For example:
+
+```json
+{
+  "field": "beneficiary.tax.foreignResidencies[*].countryCode"
+}
+```
+
+matches concrete payload fields such as:
+
+```text
+beneficiary.tax.foreignResidencies[0].countryCode
+beneficiary.tax.foreignResidencies[1].countryCode
+```
+
+Wildcard fields are supported for check rules and predicate rules through `aggregate`. They are not a separate operator and do not require custom operator packs.
+
+For check rules, supported `aggregate.mode` values are:
+
+- `EACH` — run the check on every matched field and emit one issue per failing concrete field; this is the default for wildcard check rules.
+- `ALL` — equivalent to `EACH` by default; when `aggregate.summaryIssue: true`, emit one summary issue on the wildcard field instead of per-field issues.
+- `COUNT` — count successful concrete checks and compare the count with `aggregate.op` and `aggregate.value`.
+- `MIN` — pick the minimum comparable matched value and run the check against that value.
+- `MAX` — pick the maximum comparable matched value and run the check against that value.
+
+For predicate rules, supported `aggregate.mode` values are:
+
+- `ANY` — predicate is true if at least one matched field evaluates to true; this is the default for wildcard predicate rules.
+- `ALL` — predicate is true only if every matched field evaluates to true.
+- `COUNT` — count true predicate evaluations and compare the count with `aggregate.op` and `aggregate.value`.
+
+Supported `aggregate.op` values for `COUNT` are `==`, `=`, `!=`, `>`, `>=`, `<`, `<=`.
+
+When a wildcard pattern matches no concrete payload fields, behavior is controlled by `aggregate.onEmpty`.
+
+For check rules:
+
+- `PASS` — treat empty match set as successful; this is the default.
+- `FAIL` — emit a failed check on the wildcard field with `meta.reason = "WILDCARD_EMPTY"`.
+- `ERROR` — abort runtime evaluation with a runtime error.
+
+For predicate rules:
+
+- `FALSE` — treat empty match set as false.
+- `TRUE` — treat empty match set as true.
+- `UNDEFINED` — treat empty match set as undefined, which is false in condition evaluation; this is the default.
+- `ERROR` — abort runtime evaluation with a runtime error.
+
+Canonical example:
+
+```json
+{
+  "id": "library.tax.foreign_country_required",
+  "type": "rule",
+  "description": "Every foreign tax residency must contain country code",
+  "role": "check",
+  "operator": "not_empty",
+  "field": "beneficiary.tax.foreignResidencies[*].countryCode",
+  "aggregate": {
+    "mode": "EACH",
+    "onEmpty": "FAIL"
+  },
+  "level": "EXCEPTION",
+  "code": "BEN.TAX.FOREIGN_COUNTRY.REQUIRED",
+  "message": "Foreign tax residency country code is required"
+}
+```
+
+For the payload:
+
+```json
+{
+  "beneficiary": {
+    "tax": {
+      "foreignResidencies": [
+        { "countryCode": "TJ" }
+      ]
+    }
+  }
+}
+```
+
+the rule evaluates the concrete field `beneficiary.tax.foreignResidencies[0].countryCode` and passes.
+
+If the array is empty or no concrete `countryCode` fields exist, the same rule fails with `WILDCARD_EMPTY` because `onEmpty` is `FAIL`.
+
+`any_filled` is a built-in check operator over an explicit `fields[]` list. It is not the wildcard aggregation mechanism. For array-wide checks, prefer wildcard `field` + `aggregate` on the appropriate base operator.
+
 ## 11. Compile semantics
 
 ### 11.1. `validateRules(source, options?)`

@@ -146,12 +146,12 @@ export function isWildcardField(field) {
 }
 
 function escapeRegexLiteral(value) {
-  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\$&');
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function wildcardPatternToRegex(pattern) {
   const parts = String(pattern).split('[*]');
-  const body = parts.map(escapeRegexLiteral).join('\[(\d+)\]');
+  const body = parts.map(escapeRegexLiteral).join('\\[(\\d+)\\]');
   return new RegExp(`^${body}$`);
 }
 

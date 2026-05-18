@@ -196,6 +196,8 @@ function buildRegistry(artifacts) {
 const LEVELS = new Set(['WARNING', 'ERROR', 'EXCEPTION']);
 const CHECK_AGGREGATE_MODES = new Set(['EACH', 'ALL', 'COUNT', 'MIN', 'MAX']);
 const PREDICATE_AGGREGATE_MODES = new Set(['ANY', 'ALL', 'COUNT']);
+const CHECK_ON_EMPTY_BEHAVIORS = new Set(['PASS', 'FAIL', 'ERROR']);
+const PREDICATE_ON_EMPTY_BEHAVIORS = new Set(['TRUE', 'FALSE', 'ERROR', 'UNDEFINED']);
 const FIELD_COMPARE_OPERATORS = new Set([
   'field_less_than_field',
   'field_greater_than_field',
@@ -269,6 +271,19 @@ function validateOptionalAggregate(artifact) {
   if (artifact.aggregate.op !== undefined && !['==', '=', '!=', '>', '>=', '<', '<='].includes(artifact.aggregate.op)) diagnostics.push(makeDiagnostic({ code: 'AGGREGATE_OP_INVALID', message: 'aggregate.op must be one of ==, =, !=, >, >=, <, <=', level: 'error', phase: 'schema_validation', artifactId: artifact.id, path: 'aggregate.op' }));
   if (artifact.aggregate.summaryIssue !== undefined && typeof artifact.aggregate.summaryIssue !== 'boolean') diagnostics.push(makeDiagnostic({ code: 'AGGREGATE_SUMMARY_ISSUE_INVALID', message: 'aggregate.summaryIssue must be boolean', level: 'error', phase: 'schema_validation', artifactId: artifact.id, path: 'aggregate.summaryIssue' }));
   if (artifact.aggregate.value !== undefined && typeof artifact.aggregate.value !== 'number') diagnostics.push(makeDiagnostic({ code: 'AGGREGATE_VALUE_INVALID', message: 'aggregate.value must be a number', level: 'error', phase: 'schema_validation', artifactId: artifact.id, path: 'aggregate.value' }));
+  if (artifact.aggregate.onEmpty !== undefined) {
+    const allowed = artifact.role === 'check' ? CHECK_ON_EMPTY_BEHAVIORS : PREDICATE_ON_EMPTY_BEHAVIORS;
+    if (!allowed.has(artifact.aggregate.onEmpty)) {
+      diagnostics.push(makeDiagnostic({
+        code: 'AGGREGATE_ON_EMPTY_INVALID',
+        message: artifact.role === 'check' ? 'check aggregate.onEmpty must be one of PASS, FAIL, ERROR' : 'predicate aggregate.onEmpty must be one of TRUE, FALSE, ERROR, UNDEFINED',
+        level: 'error',
+        phase: 'schema_validation',
+        artifactId: artifact.id,
+        path: 'aggregate.onEmpty',
+      }));
+    }
+  }
   return diagnostics;
 }
 
@@ -747,7 +762,13 @@ function evaluateCheck(artifact, rule, ctxBase, tracer, scope) {
       }, null);
       const aggKey = '__agg__';
       const pickedValue = deepGet(ctx.payload, picked.key).value;
-      const syntheticContext = { ...ctx, payload: { [aggKey]: pickedValue } };
+      const syntheticPayload = { [aggKey]: pickedValue };
+      const syntheticContext = {
+        ...ctx,
+        payload: syntheticPayload,
+        get: (path) => deepGet(syntheticPayload, path),
+        has: (path) => deepGet(syntheticPayload, path).ok,
+      };
       const result = operator({ ...rule, field: aggKey, _patternField: rule.field }, syntheticContext);
       if (result.status === 'EXCEPTION') return result;
       if (result.status === 'OK') return { status: 'OK' };

@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.0.2
+
+- fixed wildcard field expansion for array paths like `items[*].code` and nested wildcard paths like `groups[*].documents[*].number`
+- added regression coverage for wildcard check and predicate aggregation, `WILDCARD_EMPTY`, multiple wildcard segments and invalid `aggregate.onEmpty` diagnostics
+- added normative wildcard documentation to `SPEC.md` and `SPEC_RU.md`
+- fixed wildcard `MIN` / `MAX` aggregation so the selected aggregate value is passed to the base operator through the runtime `ctx.get(...)` boundary
+- added compile-time validation for `aggregate.onEmpty` values
+- added feature-review tests for all built-in check/predicate operators and wildcard `COUNT` / `MIN` / `MAX` aggregation
+
 ## 2.0.1
 
 - fixed the inter-library transport-safe contract of the public rules runtime result
