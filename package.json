@@ -1,6 +1,6 @@
 {
   "name": "@processengine/rules",
-  "version": "2.2.0",
+  "version": "2.0.1",
   "description": "ProcessEngine rules runtime for declarative validation artifacts",
   "type": "module",
   "main": "./index.js",
